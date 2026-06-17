@@ -5,189 +5,157 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ─── Step config ──────────────────────────────────────────────────────────────
-
 const STEPS = [
-  { id: 'route',   label: 'Fetching route...',               durationMs: 800  },
-  { id: 'solar',   label: 'Calculating solar positions...',  durationMs: 1400 },
-  { id: 'weather', label: 'Analyzing weather...',            durationMs: 2000 },
-  { id: 'recs',    label: 'Generating recommendations...',   durationMs: 3200 },
+  { id: 'route',   label: 'Fetching route geometry…',      durationMs: 0    },
+  { id: 'solar',   label: 'Calculating solar angles…',     durationMs: 1400 },
+  { id: 'weather', label: 'Analyzing weather impact…',     durationMs: 2800 },
+  { id: 'recs',    label: 'Optimizing seat position…',     durationMs: 4200 },
 ] as const;
 
-type StepId = typeof STEPS[number]['id'];
-
-// ─── Pulsing Sun ──────────────────────────────────────────────────────────────
-
-function PulsingSun() {
+// Earth + orbiting Sun SVG animation
+function SolarOrbit() {
   return (
-    <div className="relative flex items-center justify-center w-28 h-28">
-      {/* Outer pulse rings */}
-      {[0, 1, 2].map((i) => (
-        <motion.div
-          key={i}
-          className="absolute inset-0 rounded-full border-2 border-amber-400/30"
-          initial={{ scale: 1, opacity: 0.5 }}
-          animate={{ scale: 1.8 + i * 0.4, opacity: 0 }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            delay: i * 0.6,
-            ease: 'easeOut',
-          }}
-        />
-      ))}
+    <div className="relative w-40 h-40 flex items-center justify-center">
+      {/* Orbit ring */}
+      <div
+        className="absolute w-36 h-36 rounded-full"
+        style={{ border: '1px dashed rgba(0,0,0,0.06)' }}
+      />
 
-      {/* Sun body */}
+      {/* Earth */}
       <motion.div
-        className="relative z-10 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-500 shadow-xl shadow-amber-500/40"
-        animate={{ scale: [1, 1.05, 1] }}
-        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        className="relative w-20 h-20 rounded-full flex items-center justify-center"
+        style={{
+          background: 'radial-gradient(circle at 35% 35%, #1d4ed8, #1e3a8a, #0f172a)',
+          boxShadow: '0 0 30px rgba(29,78,216,0.4), 0 0 8px rgba(29,78,216,0.2)',
+        }}
+        animate={{ rotate: 360 }}
+        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
       >
-        {/* Rays */}
-        {Array.from({ length: 8 }, (_, i) => (
-          <motion.div
-            key={i}
-            className="absolute h-2 w-0.5 rounded-full bg-amber-200/70 origin-center"
+        {/* Continent blobs */}
+        <div className="absolute w-5 h-4 rounded-full" style={{ background: 'rgba(16,185,129,0.6)', top: '18%', left: '22%' }} />
+        <div className="absolute w-3 h-5 rounded-full" style={{ background: 'rgba(16,185,129,0.5)', top: '38%', right: '18%' }} />
+        <div className="absolute w-4 h-3 rounded-full" style={{ background: 'rgba(16,185,129,0.5)', bottom: '22%', left: '28%' }} />
+        {/* Atmosphere glow */}
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{ background: 'radial-gradient(circle at 30% 30%, rgba(56,189,248,0.12) 0%, transparent 65%)' }}
+        />
+      </motion.div>
+
+      {/* Orbiting sun */}
+      <motion.div
+        className="absolute w-8 h-8"
+        style={{ top: '50%', left: '50%', marginTop: '-16px', marginLeft: '-16px' }}
+        animate={{ rotate: 360 }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: '-54px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '20px',
+            height: '20px',
+          }}
+        >
+          {/* Sun glow rings */}
+          {[0, 1].map((i) => (
+            <motion.div
+              key={i}
+              className="absolute inset-0 rounded-full"
+              style={{ border: '1px solid rgba(0,0,0,0.07)', margin: `-${(i + 1) * 4}px` }}
+              animate={{ opacity: [0.6, 0, 0.6] }}
+              transition={{ duration: 2, repeat: Infinity, delay: i * 0.6 }}
+            />
+          ))}
+          <div
+            className="w-full h-full rounded-full"
             style={{
-              rotate: `${i * 45}deg`,
-              translateY: '-160%',
-            }}
-            animate={{ opacity: [0.4, 1, 0.4], scaleY: [0.8, 1.2, 0.8] }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              delay: i * 0.1,
-              ease: 'easeInOut',
+              background: 'radial-gradient(circle at 35% 30%, #3F3F46 0%, #09090B 60%, #09090B 100%)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.18) inset',
             }}
           />
-        ))}
-
-        {/* Inner glow */}
-        <div className="h-8 w-8 rounded-full bg-white/30 blur-sm" />
+        </div>
       </motion.div>
     </div>
   );
 }
 
-// ─── Animated Route Path ──────────────────────────────────────────────────────
-
-function AnimatedRoutePath() {
-  return (
-    <div className="w-full max-w-xs mx-auto">
-      <svg
-        viewBox="0 0 300 60"
-        className="w-full"
-        aria-hidden
-      >
-        {/* Track */}
-        <path
-          d="M 20 30 C 80 30, 100 10, 150 30 C 200 50, 220 30, 280 30"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          className="text-slate-200 dark:text-slate-700"
-        />
-        {/* Animated path */}
-        <motion.path
-          d="M 20 30 C 80 30, 100 10, 150 30 C 200 50, 220 30, 280 30"
-          fill="none"
-          stroke="url(#routeGrad)"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeDasharray="280"
-          initial={{ strokeDashoffset: 280 }}
-          animate={{ strokeDashoffset: 0 }}
-          transition={{ duration: 2, ease: 'easeInOut', repeat: Infinity, repeatDelay: 0.5 }}
-        />
-        {/* Gradient def */}
-        <defs>
-          <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#10B981" />
-            <stop offset="50%" stopColor="#F59E0B" />
-            <stop offset="100%" stopColor="#EF4444" />
-          </linearGradient>
-        </defs>
-        {/* Start dot */}
-        <circle cx="20" cy="30" r="5" fill="#10B981" />
-        {/* End dot */}
-        <motion.circle
-          cx="280"
-          cy="30"
-          r="5"
-          fill="#EF4444"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.8, duration: 0.3 }}
-        />
-      </svg>
-    </div>
-  );
-}
-
-// ─── Step Item ────────────────────────────────────────────────────────────────
-
 interface StepItemProps {
+  index: number;
   label: string;
   state: 'done' | 'active' | 'pending';
 }
 
-function StepItem({ label, state }: StepItemProps) {
+function StepItem({ index, label, state }: StepItemProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, x: -12 }}
+      initial={{ opacity: 0, x: 16 }}
       animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.08, duration: 0.3 }}
       className="flex items-center gap-3"
     >
-      {/* Icon */}
-      <div className="relative h-6 w-6 shrink-0 flex items-center justify-center">
+      {/* Number / status circle */}
+      <div className="relative h-7 w-7 shrink-0 flex items-center justify-center">
         <AnimatePresence mode="wait">
           {state === 'done' && (
             <motion.div
               key="done"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              className="flex h-7 w-7 items-center justify-center rounded-full"
+              style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)' }}
             >
-              <Check size={12} strokeWidth={3} className="text-white" />
+              <Check size={13} strokeWidth={2.5} style={{ color: '#09090B' }} />
             </motion.div>
           )}
           {state === 'active' && (
             <motion.div
               key="active"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              className="flex h-6 w-6 items-center justify-center"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              className="flex h-7 w-7 items-center justify-center rounded-full"
+              style={{ background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.10)' }}
             >
               <motion.div
-                className="h-5 w-5 rounded-full border-2 border-sky-500 border-t-transparent"
+                className="w-4 h-4 rounded-full"
+                style={{ border: '2px solid rgba(0,0,0,0.06)', borderTop: '2px solid #09090B' }}
                 animate={{ rotate: 360 }}
-                transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
               />
             </motion.div>
           )}
           {state === 'pending' && (
             <motion.div
               key="pending"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              className="h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto"
-            />
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              className="flex h-7 w-7 items-center justify-center rounded-full"
+              style={{ background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.05)' }}
+            >
+              <span className="text-[10px] font-bold" style={{ color: 'rgba(100,116,139,0.6)' }}>
+                {index + 1}
+              </span>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Label */}
       <span
         className={cn(
           'text-sm transition-colors duration-300',
-          state === 'done' && 'text-emerald-600 dark:text-emerald-400 font-medium',
-          state === 'active' && 'text-slate-800 dark:text-slate-100 font-semibold',
-          state === 'pending' && 'text-slate-400 dark:text-slate-500',
+          state === 'done'    && 'font-medium',
+          state === 'active'  && 'font-semibold',
+          state === 'pending' && 'opacity-40',
         )}
+        style={{
+          color: state === 'done' ? '#09090B' : state === 'active' ? '#09090B' : 'var(--text-secondary)',
+        }}
       >
         {label}
       </span>
@@ -195,49 +163,20 @@ function StepItem({ label, state }: StepItemProps) {
   );
 }
 
-// ─── Progress Bar ─────────────────────────────────────────────────────────────
-
-function ProgressBar({ progress }: { progress: number }) {
-  return (
-    <div className="w-full max-w-xs mx-auto">
-      <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-        <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-sky-500 to-violet-500"
-          initial={{ width: '0%' }}
-          animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-        />
-      </div>
-      <div className="flex justify-between mt-1.5">
-        <span className="text-xs text-slate-400">Analyzing your route</span>
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-          ~5 seconds
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ─── LoadingState ─────────────────────────────────────────────────────────────
-
 export function LoadingState() {
   const [activeStepIdx, setActiveStepIdx] = React.useState(0);
 
   React.useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-
     STEPS.forEach((step, idx) => {
-      if (idx === 0) return; // step 0 is immediately active
-      const timer = setTimeout(() => {
-        setActiveStepIdx(idx);
-      }, step.durationMs);
+      if (idx === 0) return;
+      const timer = setTimeout(() => setActiveStepIdx(idx), step.durationMs);
       timers.push(timer);
     });
-
     return () => timers.forEach((t) => clearTimeout(t));
   }, []);
 
-  const progress = Math.round(((activeStepIdx + 0.5) / STEPS.length) * 100);
+  const progressPct = Math.round(((activeStepIdx + 0.6) / STEPS.length) * 100);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4">
@@ -247,37 +186,48 @@ export function LoadingState() {
         transition={{ duration: 0.5 }}
         className="flex flex-col items-center gap-8 w-full max-w-sm"
       >
-        {/* Sun animation */}
-        <PulsingSun />
-
-        {/* Route path animation */}
-        <AnimatedRoutePath />
+        {/* Solar orbit animation */}
+        <SolarOrbit />
 
         {/* Title */}
         <div className="text-center">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+          <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
             Analyzing Your Journey
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
             Calculating sun exposure for every segment
           </p>
         </div>
 
         {/* Step list */}
-        <div className="flex flex-col gap-3 w-full">
+        <div className="flex flex-col gap-2.5 w-full">
           {STEPS.map((step, idx) => {
             const state =
-              idx < activeStepIdx ? 'done' :
+              idx < activeStepIdx  ? 'done' :
               idx === activeStepIdx ? 'active' :
               'pending';
-            return (
-              <StepItem key={step.id} label={step.label} state={state} />
-            );
+            return <StepItem key={step.id} index={idx} label={step.label} state={state} />;
           })}
         </div>
 
         {/* Progress bar */}
-        <ProgressBar progress={progress} />
+        <div className="w-full flex flex-col gap-2">
+          <div className="h-0.5 w-full rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.05)' }}>
+            <motion.div
+              className="h-full rounded-full"
+              style={{
+                background: 'linear-gradient(90deg, #09090B, #3F3F46)',
+                boxShadow: 'none',
+              }}
+              initial={{ width: '0%' }}
+              animate={{ width: `${progressPct}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            />
+          </div>
+          <p className="text-center text-[10px]" style={{ color: 'rgba(100,116,139,0.6)' }}>
+            Powered by SunCalc · OpenRouteService · OpenWeatherMap
+          </p>
+        </div>
       </motion.div>
     </div>
   );

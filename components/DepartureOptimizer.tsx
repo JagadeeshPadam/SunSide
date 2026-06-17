@@ -2,20 +2,8 @@
 
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  type TooltipContentProps,
-} from 'recharts';
-import { Crown, Clock, TrendingDown, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Crown, TrendingDown, Check } from 'lucide-react';
 import { cn, formatTime, getExposureColor } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import type { DepartureOptimization, OptimizationResult } from '@/types';
 
 interface DepartureOptimizerProps {
@@ -26,43 +14,8 @@ interface DepartureOptimizerProps {
 }
 
 function fmtIso(iso: string): string {
-  try {
-    return formatTime(new Date(iso));
-  } catch {
-    return iso;
-  }
+  try { return formatTime(new Date(iso)); } catch { return iso; }
 }
-
-function fmtReduction(pct: number): string {
-  return `${Math.round(pct)}%`;
-}
-
-const BarTooltip = ({ active, payload }: Partial<TooltipContentProps<number, string>>) => {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload as OptimizationResult & { isBest: boolean };
-  const color = getExposureColor(d.exposureScore);
-
-  return (
-    <div className="rounded-xl border border-slate-200/60 bg-white/95 px-3 py-2.5 shadow-xl backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-800/95 text-xs space-y-1 min-w-[130px]">
-      <p className="font-semibold text-slate-800 dark:text-slate-200">
-        {fmtIso(d.departureTime)}
-        {d.isBest && (
-          <span className="ml-1.5 text-amber-500">★ Best</span>
-        )}
-      </p>
-      <div className="flex justify-between gap-3">
-        <span className="text-slate-500 dark:text-slate-400">Exposure</span>
-        <span className="font-bold" style={{ color }}>{Math.round(d.exposureScore)}</span>
-      </div>
-      <div className="flex justify-between gap-3">
-        <span className="text-slate-500 dark:text-slate-400">Reduction</span>
-        <span className="font-medium text-emerald-600 dark:text-emerald-400">
-          {fmtReduction(d.exposureReduction)}
-        </span>
-      </div>
-    </div>
-  );
-};
 
 export function DepartureOptimizer({
   optimization,
@@ -70,7 +23,6 @@ export function DepartureOptimizer({
   currentDepartureTime,
   className,
 }: DepartureOptimizerProps) {
-  const [showAll, setShowAll] = React.useState(false);
   const [applied, setApplied] = React.useState(false);
 
   const bestTime = optimization.bestTime;
@@ -81,233 +33,187 @@ export function DepartureOptimizer({
   const bestScore = optimization.bestScore;
   const savingsPct = Math.max(0, Math.round(((currentScore - bestScore) / currentScore) * 100));
 
-  const chartData = optimization.options.map((opt) => ({
-    ...opt,
-    isBest: opt.departureTime === bestTime,
-    label: fmtIso(opt.departureTime),
-  }));
-
-  const visibleOptions = showAll ? optimization.options : optimization.options.slice(0, 5);
-
   const handleApply = () => {
     setApplied(true);
     onApply(bestTime);
   };
 
   return (
-    <div className={cn('flex flex-col gap-5', className)}>
-      {/* Hero: current vs best */}
-      <div className="grid grid-cols-2 gap-3">
+    <div className={cn('flex flex-col gap-4', className)}>
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <Clock size={14} style={{ color: '#09090B' }} />
+        <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>
+          Optimal Departure
+        </span>
+        {savingsPct > 0 && (
+          <span
+            className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold"
+            style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', color: '#09090B' }}
+          >
+            ↓{savingsPct}% exposure
+          </span>
+        )}
+      </div>
+
+      {/* Current vs Recommended cards */}
+      <div className="grid grid-cols-2 gap-2">
         {/* Current */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
+        <div
+          className="rounded-xl p-3.5"
+          style={{
+            background: 'rgba(0,0,0,0.02)',
+            border: '1px solid rgba(0,0,0,0.05)',
+          }}
+        >
           <div className="flex items-center gap-1.5 mb-2">
-            <Clock size={13} className="text-slate-400" />
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+            <Clock size={11} style={{ color: 'var(--text-secondary)' }} />
+            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>
               Current
             </span>
           </div>
-          <p className="text-xl font-bold text-slate-700 dark:text-slate-300">
+          <p className="text-xl font-black tabular-nums" style={{ color: 'var(--text-primary)' }}>
             {fmtIso(currentDepartureTime)}
           </p>
-          <p
-            className="text-sm font-semibold mt-1 tabular-nums"
-            style={{ color: getExposureColor(currentScore) }}
-          >
+          <p className="text-xs font-semibold mt-1 tabular-nums" style={{ color: getExposureColor(currentScore) }}>
             Score: {Math.round(currentScore)}
           </p>
         </div>
 
-        {/* Best */}
-        <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10 p-4">
+        {/* Recommended */}
+        <div
+          className="rounded-xl p-3.5 relative overflow-hidden"
+          style={{
+            background: 'rgba(0,0,0,0.04)',
+            border: '1px solid rgba(0,0,0,0.10)',
+            boxShadow: '0 0 16px rgba(0,0,0,0.04)',
+          }}
+        >
+          {/* BEST badge */}
+          <div
+            className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-black tracking-wide"
+            style={{ background: 'rgba(0,0,0,0.06)', color: '#09090B' }}
+          >
+            BEST
+          </div>
           <div className="flex items-center gap-1.5 mb-2">
-            <Crown size={13} className="text-amber-500" />
-            <span className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+            <Crown size={11} style={{ color: '#09090B' }} />
+            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#09090B' }}>
               Optimal
             </span>
           </div>
-          <p className="text-xl font-bold text-slate-800 dark:text-slate-100">
+          <p className="text-xl font-black tabular-nums" style={{ color: 'var(--text-primary)' }}>
             {fmtIso(bestTime)}
           </p>
-          <p
-            className="text-sm font-semibold mt-1 tabular-nums"
-            style={{ color: getExposureColor(bestScore) }}
-          >
+          <p className="text-xs font-semibold mt-1 tabular-nums" style={{ color: getExposureColor(bestScore) }}>
             Score: {Math.round(bestScore)}
           </p>
         </div>
       </div>
 
-      {/* Savings callout */}
+      {/* Reduction callout */}
       {savingsPct > 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex items-center gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 p-4"
+          className="flex items-center gap-3 rounded-xl p-3.5"
+          style={{
+            background: 'rgba(16,185,129,0.06)',
+            border: '1px solid rgba(16,185,129,0.18)',
+          }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 shadow-lg shadow-emerald-500/30">
-            <TrendingDown size={20} className="text-white" />
+          <div
+            className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(16,185,129,0.15)' }}
+          >
+            <TrendingDown size={16} style={{ color: '#09090B' }} />
           </div>
           <div>
-            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-              {savingsPct}% less
+            <p className="text-xl font-black" style={{ color: '#09090B' }}>
+              ↓ {savingsPct}% less exposure
             </p>
-            <p className="text-xs text-emerald-700 dark:text-emerald-300">
-              exposure by leaving at {fmtIso(bestTime)}
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+              by leaving at {fmtIso(bestTime)}
             </p>
           </div>
         </motion.div>
       )}
 
-      {/* Bar chart */}
+      {/* Options pill list */}
       {optimization.options.length > 1 && (
         <div>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wide">
-            Exposure by departure time
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-secondary)' }}>
+            All tested times
           </p>
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 10, fill: '#94A3B8' }}
-                tickLine={false}
-                axisLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                domain={[0, 100]}
-                tick={{ fontSize: 10, fill: '#94A3B8' }}
-                tickLine={false}
-                axisLine={false}
-                tickCount={4}
-              />
-              <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
-              <Bar dataKey="exposureScore" radius={[5, 5, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.isBest ? '#F59E0B' : getExposureColor(entry.exposureScore)}
-                    fillOpacity={entry.isBest ? 1 : 0.7}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Options list */}
-      <div>
-        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">
-          All tested times
-        </p>
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700/50 overflow-hidden">
-          <AnimatePresence initial={false}>
-            {visibleOptions.map((opt, i) => {
+          <div className="flex flex-wrap gap-1.5">
+            {optimization.options.map((opt, i) => {
               const isBest = opt.departureTime === bestTime;
               const isCurrent = opt.departureTime === currentDepartureTime;
               const color = getExposureColor(opt.exposureScore);
-
               return (
-                <motion.div
-                  key={opt.departureTime}
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2, delay: i * 0.03 }}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3',
-                    isBest && 'bg-amber-50/70 dark:bg-amber-500/10',
-                    isCurrent && !isBest && 'bg-slate-50 dark:bg-slate-700/30',
-                  )}
+                <div
+                  key={i}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium"
+                  style={{
+                    background: isBest
+                      ? 'rgba(0,0,0,0.05)'
+                      : isCurrent
+                      ? 'rgba(0,0,0,0.05)'
+                      : 'rgba(0,0,0,0.02)',
+                    border: `1px solid ${isBest ? 'rgba(0,0,0,0.07)' : 'rgba(0,0,0,0.05)'}`,
+                    color: isBest ? '#09090B' : 'var(--text-secondary)',
+                  }}
                 >
-                  {/* Icon */}
-                  <div className="w-5 shrink-0">
-                    {isBest ? (
-                      <Crown size={14} className="text-amber-500" />
-                    ) : isCurrent ? (
-                      <Clock size={14} className="text-slate-400" />
-                    ) : (
-                      <div className="h-1.5 w-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto" />
-                    )}
-                  </div>
-
-                  {/* Time */}
-                  <span className={cn(
-                    'text-sm font-medium w-16 shrink-0',
-                    isBest ? 'text-amber-700 dark:text-amber-300' : 'text-slate-700 dark:text-slate-300',
-                  )}>
-                    {fmtIso(opt.departureTime)}
-                  </span>
-
-                  {/* Bar */}
-                  <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${opt.exposureScore}%`,
-                        backgroundColor: color,
-                      }}
-                    />
-                  </div>
-
-                  {/* Score */}
-                  <span
-                    className="text-xs font-bold tabular-nums w-7 text-right shrink-0"
-                    style={{ color }}
-                  >
-                    {Math.round(opt.exposureScore)}
-                  </span>
-
-                  {/* Reduction badge */}
-                  {opt.exposureReduction > 0 && (
-                    <Badge variant="success" className="text-xs shrink-0">
-                      -{fmtReduction(opt.exposureReduction)}
-                    </Badge>
-                  )}
-                </motion.div>
+                  {isBest && <Crown size={9} style={{ color: '#09090B' }} />}
+                  {fmtIso(opt.departureTime)}
+                  <span style={{ color, opacity: 0.8 }}> · {Math.round(opt.exposureScore)}</span>
+                </div>
               );
             })}
-          </AnimatePresence>
+          </div>
         </div>
-
-        {/* Show more/less */}
-        {optimization.options.length > 5 && (
-          <button
-            type="button"
-            onClick={() => setShowAll((v) => !v)}
-            className="mt-2 flex w-full items-center justify-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors py-1"
-          >
-            {showAll ? (
-              <>Show less <ChevronUp size={12} /></>
-            ) : (
-              <>Show all {optimization.options.length} times <ChevronDown size={12} /></>
-            )}
-          </button>
-        )}
-      </div>
+      )}
 
       {/* Apply button */}
-      <Button
-        size="lg"
+      <motion.button
         onClick={handleApply}
         disabled={applied}
-        className={cn(
-          'w-full font-semibold',
-          applied && 'bg-emerald-500 hover:bg-emerald-500',
-        )}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all btn-shimmer"
+        style={{
+          background: applied
+            ? 'rgba(16,185,129,0.15)'
+            : 'linear-gradient(135deg, #09090B, #3F3F46)',
+          border: applied ? '1px solid rgba(16,185,129,0.3)' : 'none',
+          color: applied ? '#09090B' : '#FFFFFF',
+          boxShadow: applied ? 'none' : '0 0 20px rgba(0,0,0,0.07)',
+          cursor: applied ? 'default' : 'pointer',
+        }}
+        whileTap={!applied ? { scale: 0.98 } : undefined}
       >
-        {applied ? (
-          <>
-            <Check size={16} />
-            Applied — Leaving at {fmtIso(bestTime)}
-          </>
-        ) : (
-          <>
-            <Crown size={16} className="text-amber-300" />
-            Apply Optimal Time ({fmtIso(bestTime)})
-          </>
-        )}
-      </Button>
+        <AnimatePresence mode="wait">
+          {applied ? (
+            <motion.span
+              key="applied"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-2"
+            >
+              <Check size={15} />
+              Applied — Leaving at {fmtIso(bestTime)}
+            </motion.span>
+          ) : (
+            <motion.span
+              key="apply"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center gap-2"
+            >
+              <Crown size={15} />
+              Apply This Time
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.button>
     </div>
   );
 }

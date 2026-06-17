@@ -171,3 +171,37 @@ export interface AnalysisRequest {
   /** How many minutes before/after departure to search (default 120) */
   optimizationWindowMinutes?: number;
 }
+
+// ─── Raw API response types (dates are strings from JSON) ────────────────────
+// Used internally by the deserialization layer in useAnalysis.ts
+
+export interface JourneySummaryRaw extends Omit<JourneySummary, 'departureTime' | 'arrivalTime'> {
+  departureTime: string;
+  arrivalTime: string;
+}
+
+export interface SeatingRecommendationRaw extends Omit<SeatingRecommendation, 'startTime' | 'endTime'> {
+  startTime: string;
+  endTime: string;
+}
+
+export interface RouteSegmentRaw extends Omit<RouteSegment, 'startTime' | 'endTime'> {
+  startTime: string;
+  endTime: string;
+}
+
+export interface SolarPositionRaw extends Omit<SolarPosition, 'sunrise' | 'sunset'> {
+  sunrise: string;
+  sunset: string;
+}
+
+export interface SegmentAnalysisRaw extends Omit<SegmentAnalysis, 'segment' | 'solarPosition'> {
+  segment: RouteSegmentRaw;
+  solarPosition: SolarPositionRaw;
+}
+
+export interface AnalysisResultRaw extends Omit<AnalysisResult, 'journey' | 'recommendations' | 'segmentAnalyses'> {
+  journey: JourneySummaryRaw;
+  recommendations: SeatingRecommendationRaw[];
+  segmentAnalyses: SegmentAnalysisRaw[];
+}

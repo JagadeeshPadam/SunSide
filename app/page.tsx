@@ -1,27 +1,170 @@
 'use client';
 
 import * as React from 'react';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Wind, MapPin, ChevronDown } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { JourneyForm } from '@/components/JourneyForm';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { CommandMenu } from '@/components/CommandMenu';
 import { useAnalysis, useOptimization } from '@/hooks/useAnalysis';
 import type { AnalysisRequest, AnalysisResult, DepartureOptimization } from '@/types';
 
+const RouteMap = dynamic(() => import('@/components/RouteMap').then(m => m.RouteMap), { ssr: false });
+
 type AppState = 'form' | 'loading' | 'results' | 'error';
 
+/* ─────────────────────────────────────────────────────
+   Geometric monochrome sun
+───────────────────────────────────────────────────── */
+function HeroSun({ size = 160 }: { size?: number }) {
+  const c = size / 2;
+  const coreR = size * 0.22;
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, margin: '0 auto', flexShrink: 0 }}>
+      {/* Outer pulsing halo */}
+      <div className="animate-scale-pulse" style={{
+        position: 'absolute', inset: 0, borderRadius: '50%',
+        border: '1px solid rgba(0,0,0,0.08)',
+      }} />
+      {/* Mid ring */}
+      <div className="animate-scale-pulse" style={{
+        position: 'absolute', inset: size * 0.13, borderRadius: '50%',
+        border: '1px solid rgba(0,0,0,0.11)',
+        animationDelay: '0.6s',
+      }} />
+      {/* Rotating rays */}
+      <div className="animate-spin-slow" style={{ position: 'absolute', inset: 0 }}>
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            left: c - 0.5,
+            top: c - size * 0.38,
+            width: 1,
+            height: size * 0.10,
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)',
+            transformOrigin: `0.5px ${size * 0.38}px`,
+            transform: `rotate(${i * 30}deg)`,
+          }} />
+        ))}
+      </div>
+      {/* Glossy core */}
+      <div style={{
+        position: 'absolute',
+        inset: c - coreR,
+        borderRadius: '50%',
+        background: 'linear-gradient(145deg, #2a2a2e 0%, #09090B 100%)',
+        boxShadow: '0 6px 32px rgba(0,0,0,0.20), 0 1px 0 rgba(255,255,255,0.20) inset',
+      }} />
+      {/* Gloss highlight */}
+      <div style={{
+        position: 'absolute', inset: c - coreR, borderRadius: '50%',
+        background: 'radial-gradient(ellipse at 33% 22%, rgba(255,255,255,0.28) 0%, transparent 55%)',
+        pointerEvents: 'none',
+      }} />
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────
+   Floating nav (shared mobile + desktop)
+───────────────────────────────────────────────────── */
+function NavPill({ onReset }: { onReset: () => void }) {
+  return (
+    <header style={{
+      position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)',
+      zIndex: 200, width: 'calc(100% - 28px)', maxWidth: 880,
+    }}>
+      <div style={{
+        borderRadius: 999, padding: '10px 18px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: 'rgba(255,255,255,0.94)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        border: '1px solid rgba(0,0,0,0.08)',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.07), 0 1px 0 rgba(255,255,255,1) inset',
+      }}>
+        <button onClick={onReset} style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+        }}>
+          <div className="animate-spin-slow" style={{
+            width: 30, height: 30, borderRadius: '50%',
+            background: 'linear-gradient(145deg, #2a2a2e, #09090B)',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.18) inset',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.75)' }} />
+          </div>
+          <div>
+            <div style={{
+              fontFamily: 'var(--font-cormorant), Georgia, serif',
+              fontStyle: 'italic', fontWeight: 600,
+              fontSize: 18, letterSpacing: '-0.01em', color: '#09090B',
+              lineHeight: 1.1,
+            }}>
+              SunSide
+            </div>
+            <div style={{ fontSize: 9, letterSpacing: '0.12em', color: '#A1A1AA', textTransform: 'uppercase' }}>
+              Solar Optimizer
+            </div>
+          </div>
+        </button>
+        <CommandMenu
+          onReset={onReset}
+          onShare={() => navigator.clipboard?.writeText(window.location.href)}
+          onExport={() => window.print()}
+          onToggleTheme={() => {}}
+        />
+      </div>
+    </header>
+  );
+}
+
+/* ─────────────────────────────────────────────────────
+   Desktop map panel
+───────────────────────────────────────────────────── */
+function MapPanel({ result }: { result: AnalysisResult | null }) {
+  if (result) {
+    return <RouteMap mapSegments={result.mapData} source={undefined} destination={undefined} className="h-full w-full" />;
+  }
+  return (
+    <div style={{ width: '100%', height: '100%', background: 'var(--surface-1)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.5,
+        backgroundImage: 'linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px)',
+        backgroundSize: '36px 36px',
+      }} />
+      <motion.div
+        animate={{ y: [0, -10, 0] }} transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, position: 'relative', zIndex: 1 }}
+      >
+        <HeroSun size={80} />
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontFamily: 'var(--font-cormorant), Georgia, serif', fontStyle: 'italic', fontSize: 18, fontWeight: 500, color: '#3F3F46' }}>Plan a journey</p>
+          <p style={{ fontSize: 11, color: '#A1A1AA', letterSpacing: '0.04em', marginTop: 2 }}>Your route will appear here</p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────
+   Page root
+───────────────────────────────────────────────────── */
 export default function Home() {
-  const [appState, setAppState] = React.useState<AppState>('form');
-  const [result, setResult] = React.useState<AnalysisResult | null>(null);
+  const [appState, setAppState]   = React.useState<AppState>('form');
+  const [result, setResult]       = React.useState<AnalysisResult | null>(null);
   const [optimization, setOptimization] = React.useState<DepartureOptimization | undefined>();
-  const [errorMsg, setErrorMsg] = React.useState('');
+  const [errorMsg, setErrorMsg]   = React.useState('');
   const [lastRequest, setLastRequest] = React.useState<AnalysisRequest | null>(null);
   const [vehicleType, setVehicleType] = React.useState<AnalysisRequest['vehicleType']>('car');
 
-  const analysis = useAnalysis();
+  const analysis    = useAnalysis();
   const optMutation = useOptimization();
 
   const handleSubmit = async (request: AnalysisRequest) => {
@@ -30,12 +173,11 @@ export default function Home() {
     setAppState('loading');
     setResult(null);
     setOptimization(undefined);
-
     try {
       const data = await analysis.mutateAsync(request);
-      setResult(data.result);
-      if (data.optimization) setOptimization(data.optimization);
+      setResult(data);
       setAppState('results');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'An unexpected error occurred');
       setAppState('error');
@@ -45,20 +187,17 @@ export default function Home() {
   const handleOptimize = async () => {
     if (!lastRequest) return;
     try {
-      const data = await optMutation.mutateAsync({
+      const opt = await optMutation.mutateAsync({
         request: lastRequest,
         windowMinutes: lastRequest.optimizationWindowMinutes ?? 120,
       });
-      setOptimization(data);
-    } catch {
-      // silently fail — user can retry
-    }
+      setOptimization(opt);
+    } catch { /* silent */ }
   };
 
   const handleApplyTime = (time: string) => {
-    if (!lastRequest) return;
-    const updated = { ...lastRequest, departureTime: time };
-    handleSubmit(updated);
+    if (lastRequest) handleSubmit({ ...lastRequest, departureTime: time });
+    else handleReset();
   };
 
   const handleReset = () => {
@@ -68,250 +207,304 @@ export default function Home() {
     setErrorMsg('');
     setLastRequest(null);
     analysis.reset();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <div className="min-h-screen flex flex-col hero-gradient">
-      {/* ── Nav ── */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-2.5 group"
-          >
-            <div className="relative w-8 h-8">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg group-hover:shadow-amber-400/40 transition-shadow" />
-              <Sun
-                size={18}
-                className="absolute inset-0 m-auto text-white animate-spin-slow"
-                strokeWidth={2.5}
-              />
-            </div>
-            <div className="leading-none">
-              <span className="font-bold text-lg tracking-tight gradient-text">SunSide</span>
-              <span className="block text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-widest uppercase">
-                Solar Optimizer
-              </span>
-            </div>
-          </button>
+    <>
+      <NavPill onReset={handleReset} />
 
-          {/* Nav links (desktop) */}
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-500 dark:text-slate-400">
-            <a href="#how" className="hover:text-slate-900 dark:hover:text-white transition-colors">How it works</a>
-            <a href="#about" className="hover:text-slate-900 dark:hover:text-white transition-colors">About</a>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
-        <AnimatePresence mode="wait">
-
-          {/* ── Form State ── */}
-          {appState === 'form' && (
-            <motion.div
-              key="form"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4 }}
-            >
-              {/* Hero */}
-              <div className="text-center pt-6 pb-12">
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.6, ease: 'easeOut' }}
-                  className="inline-flex items-center gap-2 bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 text-xs font-semibold px-4 py-1.5 rounded-full mb-6"
-                >
-                  <Wind size={12} />
-                  AI-free · Pure solar physics
-                </motion.div>
-
-                <motion.h1
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.1 }}
-                  className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-4"
-                >
-                  Sit on the{' '}
-                  <span className="gradient-text">right side</span>
-                  <br className="hidden sm:block" /> of your journey.
-                </motion.h1>
-
-                <motion.p
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                  className="text-slate-500 dark:text-slate-400 text-lg max-w-xl mx-auto"
-                >
-                  Enter your route and we&apos;ll calculate exactly which seat minimizes
-                  direct sun exposure — using real solar angles, live weather, and route geometry.
-                </motion.p>
-
-                {/* Stats strip */}
-                <motion.div
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.5, delay: 0.3 }}
-                  className="flex flex-wrap justify-center gap-8 mt-8 text-sm"
-                >
-                  {[
-                    { label: 'Solar accuracy', value: '< 0.1°' },
-                    { label: 'Segment resolution', value: '5 min' },
-                    { label: 'Vehicle types', value: '4' },
-                  ].map((s) => (
-                    <div key={s.label} className="text-center">
-                      <div className="text-2xl font-bold gradient-text">{s.value}</div>
-                      <div className="text-slate-400 dark:text-slate-500">{s.label}</div>
-                    </div>
-                  ))}
-                </motion.div>
-              </div>
-
-              {/* Form card */}
-              <motion.div
-                initial={{ y: 40, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.25 }}
-              >
-                <JourneyForm onSubmit={handleSubmit} loading={false} />
-              </motion.div>
-
-              {/* How it works */}
-              <motion.section
-                id="how"
-                initial={{ y: 40, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-                className="mt-24 pb-16"
-              >
-                <div className="text-center mb-12">
-                  <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-3">
-                    How SunSide works
-                  </h2>
-                  <p className="text-slate-500 dark:text-slate-400 max-w-lg mx-auto">
-                    Pure physics — no AI guesswork. Every recommendation is derived from
-                    real solar geometry and your exact route.
+      {/* ═══════════════════════════════════════════
+          DESKTOP (lg+)
+      ═══════════════════════════════════════════ */}
+      <div className="hidden lg:flex" style={{ height: '100dvh' }}>
+        {/* Sidebar */}
+        <div style={{
+          width: 420, flexShrink: 0, height: '100dvh', overflowY: 'auto',
+          borderRight: '1px solid rgba(0,0,0,0.06)', background: '#FFFFFF',
+        }}>
+          <div style={{ paddingTop: 90, paddingBottom: 48, paddingLeft: 36, paddingRight: 36 }}>
+            <AnimatePresence mode="wait">
+              {appState === 'form' && (
+                <motion.div key="d-form" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3 }}>
+                  <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#A1A1AA', marginBottom: 12 }}>Solar Route Planner</p>
+                  <h1 style={{ fontFamily: 'var(--font-cormorant), Georgia, serif', fontStyle: 'italic', fontWeight: 600, fontSize: 46, lineHeight: 1.08, letterSpacing: '-0.02em', color: '#09090B', marginBottom: 10 }}>
+                    Travel smarter,<br />sit in the shade.
+                  </h1>
+                  <p style={{ fontSize: 14, color: '#71717A', lineHeight: 1.65, marginBottom: 36, maxWidth: 320 }}>
+                    Solar physics calculates exactly which window seat gets the least direct sunlight on your route.
                   </p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {[
-                    {
-                      step: '01',
-                      icon: '🗺️',
-                      title: 'Route Geometry',
-                      desc: 'We fetch your exact route and split it into 5-minute segments with precise headings.',
-                    },
-                    {
-                      step: '02',
-                      icon: '☀️',
-                      title: 'Solar Position',
-                      desc: 'SunCalc computes sun azimuth & altitude at each segment\'s exact location and time.',
-                    },
-                    {
-                      step: '03',
-                      icon: '🌤️',
-                      title: 'Weather Impact',
-                      desc: 'Cloud coverage from OpenWeatherMap modulates how much solar exposure you actually receive.',
-                    },
-                    {
-                      step: '04',
-                      icon: '💺',
-                      title: 'Seat Recommendation',
-                      desc: 'The side that faces away from the sun gets recommended, with a full timeline for long journeys.',
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.step}
-                      className="relative rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-6 hover:border-sky-300 dark:hover:border-sky-600 transition-colors group"
-                    >
-                      <div className="text-3xl mb-4">{item.icon}</div>
-                      <div className="absolute top-4 right-4 text-xs font-mono font-bold text-slate-200 dark:text-slate-700 group-hover:text-sky-200 dark:group-hover:text-sky-900 transition-colors">
-                        {item.step}
-                      </div>
-                      <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
-                        {item.title}
-                      </h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                        {item.desc}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </motion.section>
-            </motion.div>
-          )}
+                  <JourneyForm onSubmit={handleSubmit} loading={false} />
+                </motion.div>
+              )}
+              {appState === 'loading' && (
+                <motion.div key="d-loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <LoadingState />
+                </motion.div>
+              )}
+              {appState === 'results' && result && (
+                <motion.div key="d-results" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+                  <ErrorBoundary>
+                    <ResultsDashboard result={result} vehicleType={vehicleType} onOptimizeDeparture={handleOptimize} optimization={optimization} optimizationLoading={optMutation.isPending} onApplyOptimizedTime={handleApplyTime} onReset={handleReset} />
+                  </ErrorBoundary>
+                </motion.div>
+              )}
+              {appState === 'error' && (
+                <motion.div key="d-error" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                  <ErrorState error={errorMsg} onRetry={() => lastRequest ? handleSubmit(lastRequest) : handleReset()} />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-          {/* ── Loading State ── */}
-          {appState === 'loading' && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <LoadingState />
-            </motion.div>
-          )}
-
-          {/* ── Results State ── */}
-          {appState === 'results' && result && (
-            <motion.div
-              key="results"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <ResultsDashboard
-                result={result}
-                vehicleType={vehicleType}
-                onOptimizeDeparture={handleOptimize}
-                optimization={optimization}
-                optimizationLoading={optMutation.isPending}
-                onApplyOptimizedTime={handleApplyTime}
-                onReset={handleReset}
-              />
-            </motion.div>
-          )}
-
-          {/* ── Error State ── */}
-          {appState === 'error' && (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="flex justify-center pt-16"
-            >
-              <ErrorState
-                error={errorMsg}
-                onRetry={() => {
-                  if (lastRequest) handleSubmit(lastRequest);
-                  else handleReset();
+            {/* Desktop footer credit */}
+            <div style={{
+              marginTop: 48, paddingTop: 20,
+              borderTop: '1px solid rgba(0,0,0,0.06)',
+              fontSize: 11, color: '#A1A1AA',
+            }}>
+              Created by{' '}
+              <a
+                href="https://www.linkedin.com/in/jagadeeshpadam/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontFamily: 'var(--font-cormorant), Georgia, serif',
+                  fontStyle: 'italic', fontWeight: 600,
+                  color: '#09090B', textDecoration: 'none',
+                  borderBottom: '1px solid rgba(0,0,0,0.25)',
+                  paddingBottom: 1,
                 }}
-              />
-            </motion.div>
-          )}
-
-        </AnimatePresence>
-      </main>
-
-      {/* ── Footer ── */}
-      <footer className="border-t border-slate-200/60 dark:border-slate-700/60 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-400 dark:text-slate-500">
-          <div className="flex items-center gap-2">
-            <MapPin size={13} />
-            <span>Powered by OpenRouteService · OpenWeatherMap · SunCalc</span>
+              >
+                Jag
+              </a>
+            </div>
           </div>
-          <span>© {new Date().getFullYear()} SunSide. Built for travelers.</span>
         </div>
-      </footer>
+        {/* Map */}
+        <div style={{ flex: 1, height: '100dvh', position: 'relative', overflow: 'hidden' }}>
+          <MapPanel result={appState === 'results' ? result : null} />
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════
+          MOBILE (below lg) — no AnimatePresence,
+          no opacity:0 traps, plain conditional render
+      ═══════════════════════════════════════════ */}
+      <MobileView
+        appState={appState}
+        result={result}
+        vehicleType={vehicleType}
+        optimization={optimization}
+        optimizationLoading={optMutation.isPending}
+        errorMsg={errorMsg}
+        lastRequest={lastRequest}
+        onSubmit={handleSubmit}
+        onOptimize={handleOptimize}
+        onApplyTime={handleApplyTime}
+        onReset={handleReset}
+      />
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────────────
+   MobileView — extracted component, NO AnimatePresence,
+   content is always immediately visible
+───────────────────────────────────────────────────── */
+interface MobileViewProps {
+  appState: AppState;
+  result: AnalysisResult | null;
+  vehicleType: AnalysisRequest['vehicleType'];
+  optimization?: DepartureOptimization;
+  optimizationLoading: boolean;
+  errorMsg: string;
+  lastRequest: AnalysisRequest | null;
+  onSubmit: (r: AnalysisRequest) => void;
+  onOptimize: () => void;
+  onApplyTime: (t: string) => void;
+  onReset: () => void;
+}
+
+function MobileView({
+  appState, result, vehicleType, optimization, optimizationLoading,
+  errorMsg, lastRequest, onSubmit, onOptimize, onApplyTime, onReset,
+}: MobileViewProps) {
+  return (
+    <div
+      className="lg:hidden"
+      style={{ minHeight: '100dvh', background: '#FFFFFF', display: 'flex', flexDirection: 'column' }}
+    >
+      {/* ── FORM ── */}
+      {appState === 'form' && (
+        <div style={{ flex: 1 }}>
+
+          {/* Hero band */}
+          <div style={{
+            paddingTop: 88,
+            paddingBottom: 32,
+            paddingLeft: 20,
+            paddingRight: 20,
+            textAlign: 'center',
+            borderBottom: '1px solid rgba(0,0,0,0.06)',
+          }}>
+            <HeroSun size={130} />
+
+            <p style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+              textTransform: 'uppercase', color: '#A1A1AA', marginTop: 22, marginBottom: 10,
+            }}>
+              Solar Route Planner
+            </p>
+
+            <h1 style={{
+              fontFamily: 'var(--font-cormorant), Georgia, serif',
+              fontStyle: 'italic', fontWeight: 600,
+              fontSize: 'clamp(32px, 9vw, 44px)',
+              lineHeight: 1.12, letterSpacing: '-0.02em',
+              color: '#09090B', marginBottom: 10,
+            }}>
+              Travel smarter,<br />sit in the shade.
+            </h1>
+
+            <p style={{ fontSize: 13, color: '#71717A', lineHeight: 1.6, maxWidth: 270, margin: '0 auto' }}>
+              Find the shadiest seat on any route using real solar physics.
+            </p>
+
+            {/* Stats */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 20 }}>
+              {[['< 0.1°', 'Solar accuracy'], ['5 min', 'Segments'], ['4', 'Vehicles']].map(([v, l]) => (
+                <div key={l} style={{
+                  background: '#FAFAFA', border: '1px solid rgba(0,0,0,0.07)',
+                  borderRadius: 10, padding: '7px 12px', textAlign: 'center',
+                }}>
+                  <div style={{ fontFamily: 'var(--font-cormorant), Georgia, serif', fontStyle: 'italic', fontSize: 17, fontWeight: 600, color: '#09090B' }}>{v}</div>
+                  <div style={{ fontSize: 9, color: '#A1A1AA', marginTop: 1, letterSpacing: '0.04em' }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Form card */}
+          <div style={{ padding: '20px 16px 0' }}>
+            <div style={{
+              background: '#FFFFFF',
+              border: '1px solid rgba(0,0,0,0.07)',
+              borderRadius: 20,
+              padding: '22px 18px',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.05), 0 1px 0 rgba(255,255,255,1) inset',
+            }}>
+              <JourneyForm onSubmit={onSubmit} loading={false} />
+            </div>
+          </div>
+
+          {/* How it works */}
+          <div style={{ padding: '28px 20px 80px' }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#A1A1AA', textAlign: 'center', marginBottom: 20 }}>
+              How it works
+            </p>
+            {[
+              ['01', 'Route Geometry', 'Splits your journey into 5-minute segments with precise vehicle headings'],
+              ['02', 'Solar Position',  'SunCalc computes sun azimuth and altitude for each segment in time'],
+              ['03', 'Weather Layer',   'Cloud cover from OpenWeatherMap modulates the raw exposure score'],
+              ['04', 'Seat Selection',  'The window with the least direct sun gets the recommendation'],
+            ].map(([num, title, desc]) => (
+              <div key={num} style={{
+                display: 'flex', gap: 16, paddingTop: 16, paddingBottom: 16,
+                borderBottom: '1px solid rgba(0,0,0,0.05)',
+              }}>
+                <div style={{
+                  fontFamily: 'var(--font-cormorant), Georgia, serif',
+                  fontStyle: 'italic', fontSize: 24, fontWeight: 400,
+                  color: '#D4D4D8', flexShrink: 0, width: 26, lineHeight: 1, marginTop: 1,
+                }}>
+                  {num}
+                </div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#09090B', marginBottom: 3 }}>{title}</p>
+                  <p style={{ fontSize: 12, color: '#71717A', lineHeight: 1.55 }}>{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── LOADING ── */}
+      {appState === 'loading' && (
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: '100dvh', paddingTop: 80, paddingLeft: 20, paddingRight: 20,
+        }}>
+          <LoadingState />
+        </div>
+      )}
+
+      {/* ── RESULTS ── */}
+      {appState === 'results' && result && (
+        <div style={{ flex: 1, paddingTop: 76 }}>
+          {/* Mini map */}
+          <div style={{ height: 200, position: 'relative', overflow: 'hidden' }}>
+            <RouteMap mapSegments={result.mapData} source={undefined} destination={undefined} className="h-full w-full" />
+            {/* fade edge */}
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0, height: 40,
+              background: 'linear-gradient(to bottom, transparent, #ffffff)',
+              pointerEvents: 'none',
+            }} />
+          </div>
+          <div style={{ padding: '0 16px 80px' }}>
+            <ErrorBoundary>
+              <ResultsDashboard
+                result={result} vehicleType={vehicleType}
+                onOptimizeDeparture={onOptimize}
+                optimization={optimization}
+                optimizationLoading={optimizationLoading}
+                onApplyOptimizedTime={onApplyTime}
+                onReset={onReset}
+              />
+            </ErrorBoundary>
+          </div>
+        </div>
+      )}
+
+      {/* ── ERROR ── */}
+      {appState === 'error' && (
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, minHeight: '100dvh',
+        }}>
+          <ErrorState error={errorMsg} onRetry={() => lastRequest ? onSubmit(lastRequest) : onReset()} />
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{
+        padding: '14px 20px 18px',
+        borderTop: '1px solid rgba(0,0,0,0.06)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#A1A1AA' }}>
+          <MapPin size={10} />
+          OpenRouteService · OpenWeatherMap · SunCalc
+        </div>
+        <div style={{ fontSize: 11, color: '#71717A' }}>
+          Created by{' '}
+          <a
+            href="https://www.linkedin.com/in/jagadeeshpadam/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontFamily: 'var(--font-cormorant), Georgia, serif',
+              fontStyle: 'italic', fontWeight: 600,
+              color: '#09090B', textDecoration: 'none',
+              borderBottom: '1px solid rgba(0,0,0,0.25)',
+              paddingBottom: 1,
+            }}
+          >
+            Jag
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

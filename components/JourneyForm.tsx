@@ -2,19 +2,27 @@
 
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, ArrowUpDown, Calendar, Clock, Sliders, Zap } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowUpDown,
+  Calendar,
+  Clock,
+  Sliders,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { VehicleSelector } from '@/components/VehicleSelector';
 import { LocationInput } from '@/components/LocationInput';
 import type { Location, VehicleType, AnalysisRequest } from '@/types';
+
+/* ─── Props ──────────────────────────────────────────────────────────────────── */
 
 interface JourneyFormProps {
   onSubmit: (request: AnalysisRequest) => void;
   loading?: boolean;
   className?: string;
+  /** Mobile multi-step wizard current step (0=route, 1=vehicle, 2=schedule) */
+  mobileStep?: number;
+  onMobileStepChange?: (step: number) => void;
 }
 
 interface FormErrors {
@@ -24,7 +32,192 @@ interface FormErrors {
   time?: string;
 }
 
-export function JourneyForm({ onSubmit, loading = false, className }: JourneyFormProps) {
+/* ─── Section label ──────────────────────────────────────────────────────────── */
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 mb-3">
+      <span
+        className="text-[10px] font-semibold uppercase tracking-[0.12em]"
+        style={{ color: 'var(--text-secondary)' }}
+      >
+        {children}
+      </span>
+      <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
+    </div>
+  );
+}
+
+/* ─── iOS-style toggle ───────────────────────────────────────────────────────── */
+
+function AmberToggle({
+  checked,
+  onChange,
+  label,
+  description,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex-1 min-w-0">
+        <p
+          className="text-sm font-semibold"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          {label}
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+          {description}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={onChange}
+        className="relative shrink-0 w-11 h-6 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20 focus-visible:ring-offset-2"
+        style={{
+          background: checked
+            ? 'linear-gradient(135deg, #09090B, #3F3F46)'
+            : 'var(--surface-3)',
+          border: checked ? 'none' : '1px solid var(--border-hover)',
+          transition: 'background 0.2s ease',
+          boxShadow: checked ? '0 0 12px rgba(0,0,0,0.10)' : 'none',
+        }}
+      >
+        <motion.span
+          animate={{ x: checked ? 20 : 2 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          className="absolute top-[3px] inline-block w-[18px] h-[18px] rounded-full shadow-lg"
+          style={{ background: 'white' }}
+        />
+      </button>
+    </div>
+  );
+}
+
+/* ─── Dark date/time input ───────────────────────────────────────────────────── */
+
+interface DarkInputProps {
+  type: 'date' | 'time';
+  value: string;
+  min?: string;
+  onChange: (val: string) => void;
+  label: string;
+  icon: React.ReactNode;
+  error?: string;
+}
+
+function DarkInput({ type, value, min, onChange, label, icon, error }: DarkInputProps) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label
+        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"
+        style={{ color: 'var(--text-secondary)' }}
+      >
+        {icon}
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        min={min}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn('w-full px-3 py-3 text-sm rounded-xl outline-none', error ? 'animate-shake' : '')}
+        style={{
+          background: 'var(--surface-2)',
+          border: error
+            ? '1px solid var(--red-err)'
+            : '1px solid var(--border-subtle)',
+          color: 'var(--text-primary)',
+          colorScheme: 'light',
+          boxShadow: error ? '0 0 0 3px rgba(239,68,68,0.12)' : 'none',
+          transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+        }}
+        onFocus={(e) => {
+          if (!error) {
+            e.currentTarget.style.borderColor = 'var(--amber)';
+            e.currentTarget.style.boxShadow = '0 0 0 3px var(--amber-glow)';
+          }
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = error ? 'var(--red-err)' : 'var(--border-subtle)';
+          e.currentTarget.style.boxShadow = error ? '0 0 0 3px rgba(239,68,68,0.12)' : 'none';
+        }}
+      />
+      {error && (
+        <motion.p
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-xs"
+          style={{ color: 'var(--red-err)' }}
+        >
+          {error}
+        </motion.p>
+      )}
+    </div>
+  );
+}
+
+/* ─── Analyze button ─────────────────────────────────────────────────────────── */
+
+function AnalyzeButton({ loading }: { loading: boolean }) {
+  const [hovered, setHovered] = React.useState(false);
+
+  return (
+    <motion.button
+      type="submit"
+      whileTap={{ scale: 0.98 }}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+      className="btn-shimmer relative w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-base font-bold text-white outline-none overflow-hidden cursor-pointer"
+      style={{
+        background: 'linear-gradient(135deg, #09090B 0%, #3F3F46 100%)',
+        backgroundSize: '200% 200%',
+        animation: hovered ? 'gradient-shift 2s ease infinite' : 'none',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.3)',
+        transition: 'box-shadow 0.2s ease, transform 0.15s ease',
+      }}
+    >
+      {loading ? (
+        <>
+          {/* Solar spinner */}
+          <div className="relative w-5 h-5">
+            <div
+              className="absolute inset-0 rounded-full border-2 border-white/30 border-t-white animate-spin"
+            />
+          </div>
+          <span>Analyzing route…</span>
+        </>
+      ) : (
+        <>
+          <span>Analyze Journey</span>
+          <motion.div
+            animate={{ x: hovered ? 4 : 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          >
+            <ArrowRight size={18} strokeWidth={2.5} />
+          </motion.div>
+        </>
+      )}
+    </motion.button>
+  );
+}
+
+/* ─── Main component ─────────────────────────────────────────────────────────── */
+
+export function JourneyForm({
+  onSubmit,
+  loading = false,
+  className,
+  mobileStep,
+  onMobileStepChange: _onMobileStepChange,
+}: JourneyFormProps) {
   const [source, setSource] = React.useState<Location | null>(null);
   const [destination, setDestination] = React.useState<Location | null>(null);
   const [date, setDate] = React.useState(() => {
@@ -43,6 +236,7 @@ export function JourneyForm({ onSubmit, loading = false, className }: JourneyFor
   const [errors, setErrors] = React.useState<FormErrors>({});
   const [swapping, setSwapping] = React.useState(false);
 
+  /* ── Validation ── */
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
     if (!source) newErrors.source = 'Please select a starting location';
@@ -53,6 +247,7 @@ export function JourneyForm({ onSubmit, loading = false, className }: JourneyFor
     return Object.keys(newErrors).length === 0;
   };
 
+  /* ── Swap ── */
   const handleSwap = () => {
     if (!source && !destination) return;
     setSwapping(true);
@@ -64,10 +259,10 @@ export function JourneyForm({ onSubmit, loading = false, className }: JourneyFor
     }, 150);
   };
 
+  /* ── Submit ── */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-
     const departureTime = new Date(`${date}T${time}:00`).toISOString();
     onSubmit({
       source: source!,
@@ -79,242 +274,277 @@ export function JourneyForm({ onSubmit, loading = false, className }: JourneyFor
     });
   };
 
-  if (loading) {
-    return (
-      <Card className={cn('w-full', className)}>
-        <CardHeader>
-          <Skeleton className="h-7 w-40" />
-          <Skeleton className="h-4 w-64 mt-1" />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <div className="grid grid-cols-2 gap-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </div>
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
+  /* ── Decide what to show in mobile wizard steps ── */
+  const isMobile = mobileStep !== undefined;
+
+  // In mobile mode, show specific sections per step
+  const showRoute    = !isMobile || mobileStep === 0;
+  const showVehicle  = !isMobile || mobileStep === 1;
+  const showSchedule = !isMobile || mobileStep === 2;
+  const showSubmit   = !isMobile || mobileStep === 2; // CTA appears on last form step
 
   return (
-    <Card className={cn('w-full', className)}>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-violet-500">
-            <Zap size={16} className="text-white" />
-          </div>
-          <CardTitle>Plan Your Journey</CardTitle>
-        </div>
-        <CardDescription>
-          Find the best seat and departure time to minimize sun exposure.
-        </CardDescription>
-      </CardHeader>
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      className={cn('flex flex-col gap-6', className)}
+    >
+      {/* ── SECTION: Route ── */}
+      <AnimatePresence mode="wait">
+        {showRoute && (
+          <motion.div
+            key="route-section"
+            initial={isMobile ? { opacity: 0, x: 30 } : false}
+            animate={{ opacity: 1, x: 0 }}
+            exit={isMobile ? { opacity: 0, x: -30 } : undefined}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+          >
+            <SectionLabel>Route</SectionLabel>
 
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-          {/* Source / Destination */}
-          <div className="relative flex flex-col gap-3">
-            <LocationInput
-              label="From"
-              placeholder="Starting point..."
-              value={source}
-              onChange={setSource}
-              icon={
-                <div className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-500">
-                  <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                </div>
-              }
-            />
+            <div className="relative flex flex-col gap-3">
+              {/* Origin */}
+              <LocationInput
+                label="From"
+                placeholder="Starting point…"
+                value={source}
+                onChange={(loc) => {
+                  setSource(loc);
+                  setErrors((p) => ({ ...p, source: undefined }));
+                }}
+                icon={
+                  <div
+                    className="flex h-4 w-4 items-center justify-center rounded-full"
+                    style={{ background: '#09090B' }}
+                  >
+                    <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                  </div>
+                }
+                hasError={!!errors.source}
+              />
+              {errors.source && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs -mt-1"
+                  style={{ color: 'var(--red-err)' }}
+                >
+                  {errors.source}
+                </motion.p>
+              )}
 
-            {errors.source && (
-              <p className="text-xs text-red-500 -mt-2">{errors.source}</p>
-            )}
+              {/* Swap button */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
+                <motion.button
+                  type="button"
+                  onClick={handleSwap}
+                  animate={swapping ? { rotate: 180 } : { rotate: 0 }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.92 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full cursor-pointer outline-none"
+                  style={{
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-secondary)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--amber)';
+                    e.currentTarget.style.color = 'var(--amber)';
+                    e.currentTarget.style.boxShadow = '0 0 12px var(--amber-glow)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  aria-label="Swap origin and destination"
+                >
+                  <ArrowUpDown size={15} />
+                </motion.button>
+                <div className="flex-1 h-px" style={{ background: 'var(--border-subtle)' }} />
+              </div>
 
-            {/* Swap button */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-slate-100 dark:bg-slate-700" />
-              <motion.button
-                type="button"
-                onClick={handleSwap}
-                animate={swapping ? { rotate: 180 } : { rotate: 0 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-full',
-                  'border border-slate-200 bg-white shadow-sm',
-                  'dark:border-slate-700 dark:bg-slate-800',
-                  'hover:border-sky-300 hover:text-sky-500 dark:hover:border-sky-600',
-                  'transition-colors duration-200',
-                )}
-                aria-label="Swap origin and destination"
-              >
-                <ArrowUpDown size={14} className="text-slate-500" />
-              </motion.button>
-              <div className="flex-1 h-px bg-slate-100 dark:bg-slate-700" />
+              {/* Destination */}
+              <LocationInput
+                label="To"
+                placeholder="Destination…"
+                value={destination}
+                onChange={(loc) => {
+                  setDestination(loc);
+                  setErrors((p) => ({ ...p, destination: undefined }));
+                }}
+                icon={
+                  <div
+                    className="flex h-4 w-4 items-center justify-center rounded-full"
+                    style={{ border: '2px solid var(--amber)' }}
+                  >
+                    <div className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--amber)' }} />
+                  </div>
+                }
+                hasError={!!errors.destination}
+              />
+              {errors.destination && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs -mt-1"
+                  style={{ color: 'var(--red-err)' }}
+                >
+                  {errors.destination}
+                </motion.p>
+              )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            <LocationInput
-              label="To"
-              placeholder="Destination..."
-              value={destination}
-              onChange={setDestination}
-              icon={
-                <div className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-violet-500">
-                  <div className="h-1.5 w-1.5 rounded-full bg-violet-500" />
-                </div>
-              }
-            />
+      {/* ── SECTION: Vehicle ── */}
+      <AnimatePresence mode="wait">
+        {showVehicle && (
+          <motion.div
+            key="vehicle-section"
+            initial={isMobile ? { opacity: 0, x: 30 } : false}
+            animate={{ opacity: 1, x: 0 }}
+            exit={isMobile ? { opacity: 0, x: -30 } : undefined}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+          >
+            <SectionLabel>Vehicle</SectionLabel>
+            <VehicleSelector value={vehicleType} onChange={setVehicleType} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            {errors.destination && (
-              <p className="text-xs text-red-500 -mt-2">{errors.destination}</p>
-            )}
-          </div>
+      {/* ── SECTION: Schedule ── */}
+      <AnimatePresence mode="wait">
+        {showSchedule && (
+          <motion.div
+            key="schedule-section"
+            initial={isMobile ? { opacity: 0, x: 30 } : false}
+            animate={{ opacity: 1, x: 0 }}
+            exit={isMobile ? { opacity: 0, x: -30 } : undefined}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            className="flex flex-col gap-4"
+          >
+            <SectionLabel>Schedule</SectionLabel>
 
-          {/* Date + Time row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Calendar size={14} className="text-slate-400" />
-                Date
-              </label>
-              <input
+            {/* Date + Time */}
+            <div className="grid grid-cols-2 gap-3">
+              <DarkInput
                 type="date"
                 value={date}
                 min={new Date().toISOString().split('T')[0]}
-                onChange={(e) => {
-                  setDate(e.target.value);
-                  setErrors((prev) => ({ ...prev, date: undefined }));
+                onChange={(v) => {
+                  setDate(v);
+                  setErrors((p) => ({ ...p, date: undefined }));
                 }}
-                className={cn(
-                  'rounded-xl border bg-white/80 px-3 py-2.5 text-sm outline-none',
-                  'transition-all duration-200 backdrop-blur-sm w-full',
-                  'dark:bg-slate-800/80 dark:text-slate-100',
-                  errors.date
-                    ? 'border-red-400 focus:ring-2 focus:ring-red-500/20'
-                    : 'border-slate-200 dark:border-slate-700 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20',
-                )}
+                label="Date"
+                icon={<Calendar size={12} />}
+                error={errors.date}
               />
-              {errors.date && <p className="text-xs text-red-500">{errors.date}</p>}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Clock size={14} className="text-slate-400" />
-                Departure Time
-              </label>
-              <input
+              <DarkInput
                 type="time"
                 value={time}
-                onChange={(e) => {
-                  setTime(e.target.value);
-                  setErrors((prev) => ({ ...prev, time: undefined }));
+                onChange={(v) => {
+                  setTime(v);
+                  setErrors((p) => ({ ...p, time: undefined }));
                 }}
-                className={cn(
-                  'rounded-xl border bg-white/80 px-3 py-2.5 text-sm outline-none',
-                  'transition-all duration-200 backdrop-blur-sm w-full',
-                  'dark:bg-slate-800/80 dark:text-slate-100',
-                  errors.time
-                    ? 'border-red-400 focus:ring-2 focus:ring-red-500/20'
-                    : 'border-slate-200 dark:border-slate-700 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20',
-                )}
+                label="Departure"
+                icon={<Clock size={12} />}
+                error={errors.time}
               />
-              {errors.time && <p className="text-xs text-red-500">{errors.time}</p>}
             </div>
-          </div>
 
-          {/* Vehicle selector */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Vehicle Type
-            </label>
-            <VehicleSelector value={vehicleType} onChange={setVehicleType} />
-          </div>
+            {/* Find Better Time toggle */}
+            <div
+              className="rounded-2xl p-4"
+              style={{
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              <AmberToggle
+                checked={optimizeDeparture}
+                onChange={() => setOptimizeDeparture((v) => !v)}
+                label="Find Better Departure Time"
+                description="Analyze nearby times to reduce sun exposure"
+              />
 
-          {/* Departure optimization toggle */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/50 dark:bg-slate-800/30">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                  Find Better Departure Time
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Analyze nearby departure times to reduce sun exposure
-                </p>
-              </div>
+              <AnimatePresence>
+                {optimizeDeparture && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-5 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <label
+                          className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"
+                          style={{ color: 'var(--text-secondary)' }}
+                        >
+                          <Sliders size={11} />
+                          Optimization Window
+                        </label>
+                        <span
+                          className="text-xs font-bold tabular-nums"
+                          style={{ color: 'var(--amber)' }}
+                        >
+                          ±{optimizationWindow} min
+                        </span>
+                      </div>
 
-              {/* Toggle switch */}
-              <button
-                type="button"
-                role="switch"
-                aria-checked={optimizeDeparture}
-                onClick={() => setOptimizeDeparture((v) => !v)}
-                className={cn(
-                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
-                  'transition-colors duration-200 ease-in-out',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2',
-                  optimizeDeparture ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-600',
+                      {/* Custom styled range slider */}
+                      <div className="relative">
+                        <input
+                          type="range"
+                          min={60}
+                          max={240}
+                          step={30}
+                          value={optimizationWindow}
+                          onChange={(e) => setOptimizationWindow(Number(e.target.value))}
+                          className="w-full h-1.5 rounded-full outline-none cursor-pointer appearance-none"
+                          style={{
+                            background: `linear-gradient(to right, #09090B ${((optimizationWindow - 60) / 180) * 100}%, var(--surface-3) ${((optimizationWindow - 60) / 180) * 100}%)`,
+                            accentColor: '#09090B',
+                          }}
+                        />
+                        <div className="flex justify-between mt-1.5">
+                          {[60, 120, 180, 240].map((v) => (
+                            <span
+                              key={v}
+                              className="text-[10px]"
+                              style={{
+                                color: v === optimizationWindow ? 'var(--amber)' : 'var(--text-secondary)',
+                                fontWeight: v === optimizationWindow ? 700 : 400,
+                              }}
+                            >
+                              {v}m
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
                 )}
-              >
-                <motion.span
-                  animate={{ x: optimizeDeparture ? 20 : 0 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                  className="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0"
-                />
-              </button>
+              </AnimatePresence>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            <AnimatePresence>
-              {optimizeDeparture && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.25, ease: 'easeOut' }}
-                  className="overflow-hidden"
-                >
-                  <div className="pt-4 flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                        <Sliders size={12} />
-                        Optimization Window
-                      </label>
-                      <span className="text-xs font-semibold text-sky-600 dark:text-sky-400">
-                        ±{optimizationWindow} min
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={60}
-                      max={240}
-                      step={30}
-                      value={optimizationWindow}
-                      onChange={(e) => setOptimizationWindow(Number(e.target.value))}
-                      className="w-full accent-sky-500 cursor-pointer"
-                    />
-                    <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500">
-                      <span>60 min</span>
-                      <span>240 min</span>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* CTA */}
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full text-base font-semibold"
-          >
-            Analyze Journey
-            <ArrowRight size={18} className="ml-1" />
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+      {/* ── CTA ── */}
+      {showSubmit && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <AnalyzeButton loading={loading} />
+        </motion.div>
+      )}
+    </form>
   );
 }

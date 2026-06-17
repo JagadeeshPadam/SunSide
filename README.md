@@ -58,7 +58,7 @@ The result is a per-segment seating recommendation timeline, an exposure score, 
 | 🌤️ Weather Integration | Cloud coverage reduces exposure score; night = zero exposure |
 | 🚗 Vehicle Types | Car, Bus, Train, Bike — each with a unique animated seat diagram |
 | ⏰ Departure Optimizer | Tests departure times at 15-minute intervals and recommends the one with least sun |
-| 🗺️ Interactive Map | Mapbox route overlay colored Green/Yellow/Red by exposure intensity |
+| 🗺️ Interactive Map | Leaflet + OpenStreetMap route overlay colored Green/Yellow/Red by exposure intensity — 100% free, no API key |
 | 📊 Exposure Chart | Recharts area chart of exposure score over journey time |
 | 🌙 Dark / Light Mode | Persisted to localStorage, respects system preference on first visit |
 | 📱 Fully Responsive | Works at 320px mobile width through 4K desktop |
