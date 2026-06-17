@@ -43,6 +43,7 @@ export function CommandMenu({ onReset, onShare, onExport, onToggleTheme }: Comma
   }, []);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (open) { setTimeout(() => inputRef.current?.focus(), 50); setQuery(''); setIdx(0); }
   }, [open]);
 

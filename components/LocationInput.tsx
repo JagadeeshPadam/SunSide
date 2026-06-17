@@ -55,16 +55,19 @@ export function LocationInput({
   const debouncedQuery = useDebounce(query, 350);
   const isConfirmed = !!(value && value.name === query && value.coordinates);
 
-  /* ── Sync external value (identical logic) ── */
+  /* ── Sync external value ── */
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (value?.name && value.name !== query) setQuery(value.name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value?.name]);
 
-  /* ── Fetch suggestions (identical logic) ── */
+  /* ── Fetch suggestions ── */
   React.useEffect(() => {
     if (!debouncedQuery || debouncedQuery.trim().length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSuggestions([]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpen(false);
       return;
     }
