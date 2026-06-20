@@ -75,42 +75,65 @@ function BestSeatHero({
   exposureReduction: number;
   comfortScore: number;
 }) {
-  const sideLabel = recommendedSide === 'left' ? 'LEFT SIDE' : recommendedSide === 'right' ? 'RIGHT SIDE' : recommendedSide.toUpperCase();
+  const isDefiniteSide = recommendedSide === 'left' || recommendedSide === 'right';
+  const sideLabel = recommendedSide === 'left' ? 'LEFT SIDE'
+    : recommendedSide === 'right' ? 'RIGHT SIDE'
+    : recommendedSide.toUpperCase();
 
   return (
-    <div
+    <motion.div
       className="relative rounded-2xl overflow-hidden"
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.45, ease: [0.34, 1.56, 0.64, 1] }}
       style={{
-        background: 'rgba(0,0,0,0.02)',
-        border: '1px solid rgba(0,0,0,0.05)',
-        borderLeft: '3px solid rgba(0,0,0,0.40)',
-        boxShadow: '-4px 0 20px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.06)',
+        background: isDefiniteSide
+          ? 'linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(255,255,255,0) 60%)'
+          : 'rgba(0,0,0,0.02)',
+        border: isDefiniteSide
+          ? '1px solid rgba(34,197,94,0.22)'
+          : '1px solid rgba(0,0,0,0.05)',
+        borderLeft: isDefiniteSide
+          ? '4px solid #22C55E'
+          : '4px solid rgba(0,0,0,0.35)',
+        boxShadow: isDefiniteSide
+          ? '-4px 0 24px rgba(34,197,94,0.12), 0 6px 24px rgba(34,197,94,0.08)'
+          : '-4px 0 20px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.06)',
       }}
     >
       {/* Ambient glow */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse 60% 80% at 0% 50%, rgba(0,0,0,0.04) 0%, transparent 60%)',
+          background: isDefiniteSide
+            ? 'radial-gradient(ellipse 70% 90% at 0% 50%, rgba(34,197,94,0.07) 0%, transparent 65%)'
+            : 'radial-gradient(ellipse 60% 80% at 0% 50%, rgba(0,0,0,0.03) 0%, transparent 60%)',
         }}
       />
 
       <div className="relative p-5 flex items-center gap-4">
-        {/* Pulsing sun */}
+        {/* Pulsing icon */}
         <div className="relative shrink-0">
           {[0, 1].map((i) => (
             <motion.div
               key={i}
               className="absolute inset-0 rounded-full"
-              style={{ border: '1px solid rgba(0,0,0,0.07)' }}
+              style={{ border: `1px solid ${isDefiniteSide ? 'rgba(34,197,94,0.25)' : 'rgba(0,0,0,0.07)'}` }}
               initial={{ scale: 1, opacity: 0.5 }}
-              animate={{ scale: 1.6 + i * 0.4, opacity: 0 }}
-              transition={{ duration: 2.4, repeat: Infinity, delay: i * 0.8, ease: 'easeOut' }}
+              animate={{ scale: 1.7 + i * 0.4, opacity: 0 }}
+              transition={{ duration: 2.6, repeat: Infinity, delay: i * 0.85, ease: 'easeOut' }}
             />
           ))}
           <motion.div
             className="relative w-12 h-12 rounded-full flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #09090B, #3F3F46)', boxShadow: '0 0 20px rgba(0,0,0,0.09)' }}
+            style={{
+              background: isDefiniteSide
+                ? 'linear-gradient(135deg, #16A34A, #22C55E)'
+                : 'linear-gradient(135deg, #09090B, #3F3F46)',
+              boxShadow: isDefiniteSide
+                ? '0 0 24px rgba(34,197,94,0.35)'
+                : '0 0 20px rgba(0,0,0,0.09)',
+            }}
             animate={{ scale: [1, 1.05, 1] }}
             transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
           >
@@ -120,45 +143,48 @@ function BestSeatHero({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>
+          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>
             Best Seat
           </p>
           <motion.h3
-            className="text-3xl font-black leading-none mt-0.5 gradient-amber"
-            initial={{ opacity: 0, x: -10 }}
+            className={`text-3xl font-black leading-none mt-1 ${isDefiniteSide ? 'gradient-green' : 'gradient-amber'}`}
+            initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.15, duration: 0.5 }}
+            transition={{ delay: 0.15, duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
           >
             {sideLabel}
           </motion.h3>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+          <p className="text-sm mt-1.5" style={{ color: 'var(--text-secondary)' }}>
             Avoids{' '}
-            <span style={{ color: '#09090B' }} className="font-semibold">
+            <span style={{ color: isDefiniteSide ? '#16A34A' : '#09090B' }} className="font-bold">
               {Math.round(exposureReduction)}%
             </span>{' '}
             of direct sunlight
           </p>
         </div>
 
-        {/* Comfort badge */}
+        {/* Comfort score */}
         <div className="shrink-0 text-center">
-          <div
+          <motion.div
             className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center"
             style={{
-              background: 'rgba(16,185,129,0.1)',
-              border: '1px solid rgba(16,185,129,0.25)',
+              background: isDefiniteSide ? 'rgba(34,197,94,0.12)' : 'rgba(16,185,129,0.10)',
+              border: isDefiniteSide ? '1px solid rgba(34,197,94,0.30)' : '1px solid rgba(16,185,129,0.25)',
             }}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.25, duration: 0.45, type: 'spring', stiffness: 280 }}
           >
-            <span className="text-xl font-black" style={{ color: '#09090B' }}>
+            <span className="text-xl font-black" style={{ color: isDefiniteSide ? '#16A34A' : '#09090B' }}>
               {Math.round(comfortScore)}
             </span>
             <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>
               Score
             </span>
-          </div>
+          </motion.div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -177,58 +203,66 @@ function ActionBar({
 
   return (
     <div
-      className="sticky bottom-0 z-10 pt-3 pb-4 no-print"
+      className="sticky bottom-0 z-10 pt-4 pb-4 no-print"
       style={{
-        background: 'linear-gradient(to top, var(--bg-base) 70%, transparent)',
+        background: 'linear-gradient(to top, var(--bg-base) 75%, transparent)',
       }}
     >
-      <div className="flex gap-2">
-        <button
+      <div className="flex gap-2.5">
+        <motion.button
           onClick={onReset}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
+          whileTap={{ scale: 0.97 }}
+          className="flex-1 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all"
           style={{
-            background: 'rgba(0,0,0,0.02)',
-            border: '1px solid rgba(0,0,0,0.06)',
-            color: 'var(--text-secondary)',
+            minHeight: 48,
+            background: 'linear-gradient(135deg, #09090B, #3F3F46)',
+            color: '#FFFFFF',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
           }}
         >
-          <RotateCcw size={14} />
+          <RotateCcw size={15} />
           New Journey
-        </button>
-        <button
+        </motion.button>
+
+        <motion.button
           onClick={handleCopy}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center justify-center gap-2 px-5 rounded-xl text-sm font-medium transition-all"
           style={{
-            background: 'rgba(0,0,0,0.02)',
-            border: '1px solid rgba(0,0,0,0.06)',
+            minHeight: 48,
+            background: 'rgba(0,0,0,0.03)',
+            border: '1px solid rgba(0,0,0,0.08)',
             color: 'var(--text-secondary)',
           }}
         >
           <AnimatePresence mode="wait">
             {copied ? (
               <motion.span key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                <Check size={14} style={{ color: '#09090B' }} />
+                <Check size={15} style={{ color: '#22C55E' }} />
               </motion.span>
             ) : (
               <motion.span key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                <Copy size={14} />
+                <Copy size={15} />
               </motion.span>
             )}
           </AnimatePresence>
-          Share
-        </button>
-        <button
+          {copied ? 'Copied!' : 'Share'}
+        </motion.button>
+
+        <motion.button
           onClick={() => window.print()}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center justify-center gap-2 px-5 rounded-xl text-sm font-medium transition-all"
           style={{
-            background: 'rgba(0,0,0,0.02)',
-            border: '1px solid rgba(0,0,0,0.06)',
+            minHeight: 48,
+            background: 'rgba(0,0,0,0.03)',
+            border: '1px solid rgba(0,0,0,0.08)',
             color: 'var(--text-secondary)',
           }}
         >
-          <Download size={14} />
+          <Download size={15} />
           Export
-        </button>
+        </motion.button>
       </div>
     </div>
   );
